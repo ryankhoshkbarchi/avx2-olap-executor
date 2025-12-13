@@ -1,11 +1,14 @@
 ﻿#include "pch.h"
 #include <iostream>
 #include <vector>
+#include <fstream>
 #include "Misc/Logger.h"
 #include "OperatorImpl/ScanOperator.h"
 #include "OperatorImpl/MemoryScanOperator.h"
 #include "OperatorImpl/AggregateFunctions/SumOperator.h"
 #include "OperatorImpl/FilterOperator.h"
+#include "OperatorImpl/HashJoinOperator.h"
+#include "OperatorImpl/CuckooHashJoinOperator.h"
 #include "Benchmarking/BenchmarkRunner.h"
 
 
@@ -97,6 +100,107 @@ int main()
 
         BenchmarkRunner::PrintComparison("Scalar Sum", ScalarSumRes.Stats, "AVX Sum", AvxSumRes.Stats);
         BenchmarkRunner::Verify(ScalarSumRes.ResultChunks, AvxSumRes.ResultChunks);
+
+        // ============================================================
+        // HASH JOIN BENCHMARK
+        // ============================================================
+        std::cout << "\n============================================================" << std::endl;
+        std::cout << "BENCHMARK SUITE: HASH JOIN" << std::endl;
+        std::cout << "============================================================" << std::endl;
+
+        // Try to load join test data
+        std::string BuildTableFile = "build_table.parquet";
+        std::string ProbeTableFile = "probe_table.parquet";
+
+        // Check if join test files exist
+        std::ifstream buildCheck(BuildTableFile);
+        std::ifstream probeCheck(ProbeTableFile);
+
+        if (buildCheck.good() && probeCheck.good())
+        {
+            buildCheck.close();
+            probeCheck.close();
+
+            LOG_TITLE("SETUP", "Pre-loading hash join data into RAM..");
+
+            std::vector<DataChunk> BuildData = PreloadData(BuildTableFile);
+            std::vector<DataChunk> ProbeData = PreloadData(ProbeTableFile);
+
+            LOG_MESSAGEF("Build table: %zu chunks", BuildData.size());
+            LOG_MESSAGEF("Probe table: %zu chunks", ProbeData.size());
+
+            // Define hash join plans
+            // Note: key column is column 0 in both tables
+            auto ScalarHashJoinPlan = [&]() -> std::unique_ptr<Operator>
+            {
+                auto Build = std::make_unique<MemoryScanOperator>(BuildData);
+                auto Probe = std::make_unique<MemoryScanOperator>(ProbeData);
+                return std::make_unique<HashJoinOperator>(
+                    std::move(Build), std::move(Probe),
+                    0, 0,  // key columns
+                    ExecutionMode::SCALAR);
+            };
+
+            auto AvxHashJoinPlan = [&]() -> std::unique_ptr<Operator>
+            {
+                auto Build = std::make_unique<MemoryScanOperator>(BuildData);
+                auto Probe = std::make_unique<MemoryScanOperator>(ProbeData);
+                return std::make_unique<HashJoinOperator>(
+                    std::move(Build), std::move(Probe),
+                    0, 0,  // key columns
+                    ExecutionMode::AVX2);
+            };
+
+            BenchmarkResult ScalarJoinRes = Runner.Run("Scalar HashJoin", ScalarHashJoinPlan);
+            BenchmarkResult AvxJoinRes = Runner.Run("AVX HashJoin", AvxHashJoinPlan);
+
+            BenchmarkRunner::PrintComparison("Scalar HashJoin", ScalarJoinRes.Stats, "AVX HashJoin", AvxJoinRes.Stats);
+            BenchmarkRunner::Verify(ScalarJoinRes.ResultChunks, AvxJoinRes.ResultChunks);
+
+            // ============================================================
+            // CUCKOO HASH JOIN BENCHMARK
+            // ============================================================
+            std::cout << "\n============================================================" << std::endl;
+            std::cout << "BENCHMARK SUITE: CUCKOO HASH JOIN" << std::endl;
+            std::cout << "============================================================" << std::endl;
+
+            auto ScalarCuckooJoinPlan = [&]() -> std::unique_ptr<Operator>
+            {
+                auto Build = std::make_unique<MemoryScanOperator>(BuildData);
+                auto Probe = std::make_unique<MemoryScanOperator>(ProbeData);
+                return std::make_unique<CuckooHashJoinOperator>(
+                    std::move(Build), std::move(Probe),
+                    0, 0,
+                    ExecutionMode::SCALAR);
+            };
+
+            auto AvxCuckooJoinPlan = [&]() -> std::unique_ptr<Operator>
+            {
+                auto Build = std::make_unique<MemoryScanOperator>(BuildData);
+                auto Probe = std::make_unique<MemoryScanOperator>(ProbeData);
+                return std::make_unique<CuckooHashJoinOperator>(
+                    std::move(Build), std::move(Probe),
+                    0, 0,
+                    ExecutionMode::AVX2);
+            };
+
+            BenchmarkResult ScalarCuckooRes = Runner.Run("Scalar CuckooJoin", ScalarCuckooJoinPlan);
+            BenchmarkResult AvxCuckooRes = Runner.Run("AVX CuckooJoin", AvxCuckooJoinPlan);
+
+            BenchmarkRunner::PrintComparison("Scalar CuckooJoin", ScalarCuckooRes.Stats, "AVX CuckooJoin", AvxCuckooRes.Stats);
+            BenchmarkRunner::Verify(ScalarCuckooRes.ResultChunks, AvxCuckooRes.ResultChunks);
+
+            // Compare linear probing vs cuckoo hashing
+            std::cout << "\n============================================================" << std::endl;
+            std::cout << "COMPARISON: Linear Probing vs Cuckoo Hashing" << std::endl;
+            std::cout << "============================================================" << std::endl;
+            BenchmarkRunner::PrintComparison("Linear Probe (AVX)", AvxJoinRes.Stats, "Cuckoo Hash (AVX)", AvxCuckooRes.Stats);
+        }
+        else
+        {
+            LOG_TITLE("SKIP", "Hash join test files not found.");
+            LOG_MESSAGE("Run 'python scripts/generate_join_data.py' to generate test data.");
+        }
 
     }
     catch (const std::exception& e)
