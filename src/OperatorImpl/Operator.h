@@ -28,6 +28,7 @@ public:
 
 protected:
     ExecutionMode CurrentMode;
+    bool bFinished = false;
 };
 
 // Base class for binary operators (two input children, e.g., joins)
