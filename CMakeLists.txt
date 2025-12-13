@@ -28,7 +28,7 @@ message(STATUS "Found Apache Arrow version: ${Arrow_VERSION}")
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
-add_executable(engine ${SOURCES} "src/OperatorImpl/AggregateFunctions/SumOperator.h" "src/OperatorImpl/AggregateFunctions/SumOperator.cpp" "src/Benchmarking/BenchmarkRunner.h" "src/Benchmarking/BenchmarkRunner.cpp" "src/OperatorImpl/MemoryScanOperator.h" "src/OperatorImpl/MemoryScanOperator.cpp" "src/OperatorImpl/AggregateFunctions/MinOperator.h" "src/OperatorImpl/AggregateFunctions/MinOperator.cpp")
+add_executable(engine ${SOURCES} "src/OperatorImpl/AggregateFunctions/SumOperator.h" "src/OperatorImpl/AggregateFunctions/SumOperator.cpp" "src/Benchmarking/BenchmarkRunner.h" "src/Benchmarking/BenchmarkRunner.cpp" "src/OperatorImpl/MemoryScanOperator.h" "src/OperatorImpl/MemoryScanOperator.cpp" "src/OperatorImpl/AggregateFunctions/MinOperator.h" "src/OperatorImpl/AggregateFunctions/MinOperator.cpp" "src/OperatorImpl/HashJoinOperator.h" "src/OperatorImpl/HashJoinOperator.cpp" "src/OperatorImpl/CuckooHashJoinOperator.h" "src/OperatorImpl/CuckooHashJoinOperator.cpp")
 
 # pch
 target_precompile_headers(engine 

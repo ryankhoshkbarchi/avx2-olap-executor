@@ -9,7 +9,11 @@
 #include <arrow/api.h>
 #include <arrow/io/api.h>
 #include <parquet/arrow/reader.h>
-#include <Windows.h>
+#ifdef _WIN32
+  #include <Windows.h>
+#else
+  #include <unistd.h>
+#endif
 
 #ifdef min
 #undef min

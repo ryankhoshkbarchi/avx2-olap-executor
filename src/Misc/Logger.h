@@ -52,7 +52,11 @@ namespace Logger {
     inline void LogInternal(const std::string& msg, Level level) {
         auto now = std::time(nullptr);
         std::tm tmNow;
+        #ifdef _WIN32
         localtime_s(&tmNow, &now);
+        #else
+        localtime_r(&now, &tmNow);
+        #endif
 
         std::ostringstream line;
         line << "[" << std::put_time(&tmNow, "%Y-%m-%d %H:%M:%S") << "] " << msg << "\n";
@@ -83,7 +87,11 @@ namespace Logger {
     inline void LogToFileOnly(const std::string& msg) {
         auto now = std::time(nullptr);
         std::tm tmNow;
+        #ifdef _WIN32
         localtime_s(&tmNow, &now);
+        #else
+        localtime_r(&now, &tmNow);
+        #endif
 
         std::ostringstream line;
         line << "[" << std::put_time(&tmNow, "%Y-%m-%d %H:%M:%S") << "] " << msg << "\n";
