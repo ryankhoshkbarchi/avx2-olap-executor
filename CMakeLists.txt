@@ -26,21 +26,41 @@ find_package(Parquet CONFIG REQUIRED)
 
 message(STATUS "Found Apache Arrow version: ${Arrow_VERSION}")
 
-file(GLOB_RECURSE SOURCES "src/*.cpp")
+# Collect all source files except main files (to avoid multiple main() definitions)
+file(GLOB_RECURSE ALL_SOURCES "src/*.cpp")
 
-add_executable(engine ${SOURCES} "src/OperatorImpl/AggregateFunctions/SumOperator.h" "src/OperatorImpl/AggregateFunctions/SumOperator.cpp" "src/Benchmarking/BenchmarkRunner.h" "src/Benchmarking/BenchmarkRunner.cpp" "src/OperatorImpl/MemoryScanOperator.h" "src/OperatorImpl/MemoryScanOperator.cpp" "src/OperatorImpl/AggregateFunctions/MinOperator.h" "src/OperatorImpl/AggregateFunctions/MinOperator.cpp" "src/OperatorImpl/HashJoinOperator.h" "src/OperatorImpl/HashJoinOperator.cpp" "src/OperatorImpl/CuckooHashJoinOperator.h" "src/OperatorImpl/CuckooHashJoinOperator.cpp")
+# Exclude main files from the common sources
+set(COMMON_SOURCES ${ALL_SOURCES})
+list(FILTER COMMON_SOURCES EXCLUDE REGEX "src/main\\.cpp$")
+list(FILTER COMMON_SOURCES EXCLUDE REGEX "src/benchmark_uniform\\.cpp$")
+list(FILTER COMMON_SOURCES EXCLUDE REGEX "src/benchmark_skewed\\.cpp$")
+list(FILTER COMMON_SOURCES EXCLUDE REGEX "src/benchmark_normal\\.cpp$")
 
-# pch
-target_precompile_headers(engine 
-    PRIVATE 
-        "src/pch.h"
-)
+# Main engine executable (original benchmark)
+add_executable(engine ${COMMON_SOURCES} "src/main.cpp")
 
+# Uniform data benchmark executable
+add_executable(benchmark_uniform ${COMMON_SOURCES} "src/benchmark_uniform.cpp")
 
-target_link_libraries(engine 
-    PUBLIC 
-        "$<IF:$<BOOL:${ARROW_BUILD_STATIC}>,Arrow::arrow_static,Arrow::arrow_shared>"
-        "$<IF:$<BOOL:${ARROW_BUILD_STATIC}>,Parquet::parquet_static,Parquet::parquet_shared>"
-)
+# Skewed data benchmark executable
+add_executable(benchmark_skewed ${COMMON_SOURCES} "src/benchmark_skewed.cpp")
 
-target_include_directories(engine PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+# Normal distribution data benchmark executable
+add_executable(benchmark_normal ${COMMON_SOURCES} "src/benchmark_normal.cpp")
+
+# Configure all executables
+foreach(TARGET_NAME engine benchmark_uniform benchmark_skewed benchmark_normal)
+    # pch
+    target_precompile_headers(${TARGET_NAME}
+        PRIVATE
+            "src/pch.h"
+    )
+
+    target_link_libraries(${TARGET_NAME}
+        PUBLIC
+            "$<IF:$<BOOL:${ARROW_BUILD_STATIC}>,Arrow::arrow_static,Arrow::arrow_shared>"
+            "$<IF:$<BOOL:${ARROW_BUILD_STATIC}>,Parquet::parquet_static,Parquet::parquet_shared>"
+    )
+
+    target_include_directories(${TARGET_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+endforeach()

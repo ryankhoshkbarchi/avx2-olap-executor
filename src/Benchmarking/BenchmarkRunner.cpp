@@ -6,8 +6,73 @@
 #include <cmath>
 #include <iostream>
 #include <iomanip>
+#include <fstream>
 #include "../Misc/Logger.h"
 
+// ============================================================
+// CSVExporter Implementation
+// ============================================================
+
+CSVExporter::CSVExporter(const std::string& FilePath)
+    : FilePath(FilePath), HeaderWritten(false)
+{
+}
+
+CSVExporter::~CSVExporter()
+{
+    Close();
+}
+
+void CSVExporter::WriteHeader()
+{
+    HeaderWritten = true;
+}
+
+void CSVExporter::WriteResult(const std::string& Dataset, const std::string& Operation,
+                              const std::string& Mode, const BenchmarkResult& Result)
+{
+    Results.push_back({Dataset, Operation, Mode, Result});
+}
+
+void CSVExporter::Close()
+{
+    if (Results.empty()) return;
+
+    std::ofstream File(FilePath);
+    if (!File.is_open())
+    {
+        LOG_MESSAGEF("Error: Could not open CSV file for writing: %s", FilePath.c_str());
+        return;
+    }
+
+    // Write header
+    File << "Dataset,Operation,Mode,TaskName,MeanNs,MedianNs,StdDevNs,MinNs,MaxNs,InputRows,OutputRows,ThroughputGBps\n";
+
+    // Write results
+    for (const auto& [Dataset, Operation, Mode, Result] : Results)
+    {
+        File << Dataset << ","
+             << Operation << ","
+             << Mode << ","
+             << Result.TaskName << ","
+             << std::fixed << std::setprecision(2) << Result.Stats.Mean << ","
+             << std::fixed << std::setprecision(2) << Result.Stats.Median << ","
+             << std::fixed << std::setprecision(2) << Result.Stats.StdDev << ","
+             << Result.Stats.Min << ","
+             << Result.Stats.Max << ","
+             << Result.Stats.InputRowCount << ","
+             << Result.Stats.RowCount << ","
+             << std::fixed << std::setprecision(4) << Result.Stats.ThroughputGBps << "\n";
+    }
+
+    File.close();
+    LOG_MESSAGEF("Benchmark results exported to: %s", FilePath.c_str());
+    Results.clear();
+}
+
+// ============================================================
+// BenchmarkRunner Implementation
+// ============================================================
 
 BenchmarkRunner::BenchmarkRunner(int NumRuns)
     : NumRuns(NumRuns)
@@ -78,7 +143,7 @@ BenchmarkResult BenchmarkRunner::Run(const std::string& TaskName, PlanFactory Fa
     LOG_MESSAGEF("   Mean: %.2f ns", Stats.Mean);
     LOG_MESSAGEF("   Bandwidth: %.2f GB/s", Stats.ThroughputGBps);
 
-    return { Stats, FirstRunResults };
+    return { TaskName, Stats, FirstRunResults };
 }
 
 BenchmarkStats BenchmarkRunner::CalculateStats(std::vector<long long>& Times, long long OutputRowCount, long long InputRowCount)
@@ -87,6 +152,7 @@ BenchmarkStats BenchmarkRunner::CalculateStats(std::vector<long long>& Times, lo
 
     BenchmarkStats Stats;
     Stats.RowCount = OutputRowCount;
+    Stats.InputRowCount = InputRowCount;
     Stats.Min = Times.front();
     Stats.Max = Times.back();
     Stats.Median = Times[Times.size() / 2];

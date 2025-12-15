@@ -12,18 +12,19 @@ struct BenchmarkStats
     long long Min;
     long long Max;
     long long RowCount;
+    long long InputRowCount;
 
 	// E (Joules) = P (Watts) * T (seconds)
-    // 
+    //
     // - Static Power (Leakage/Background): The RAM and Motherboard consume constant power (e.g., 20W) just by being on.
     // - Dynamic Power (Switching): The CPU consumes extra power (e.g., +10W) to run AVX instructions.
-    // 
+    //
     // Scenario A (Low Throughput/Scalar):
     //   Low Power (20W) * Long Time (10s) = 200 Joules
-    // 
+    //
     // Scenario B (High Throughput/AVX):
     //   High Power (30W) * Short Time (1s) = 30 Joules
-    // 
+    //
     // therefore, maximizing Throughput (GB/s) minimizes `Time`, which usually minimizes Total Energy
     // by paying off the constant Static Power cost over more data per second.
     double ThroughputGBps;
@@ -31,8 +32,27 @@ struct BenchmarkStats
 
 struct BenchmarkResult
 {
+    std::string TaskName;
     BenchmarkStats Stats;
-    std::vector<DataChunk> ResultChunks; 
+    std::vector<DataChunk> ResultChunks;
+};
+
+// CSV Export functionality for benchmark results
+class CSVExporter
+{
+public:
+    CSVExporter(const std::string& FilePath);
+    ~CSVExporter();
+
+    void WriteHeader();
+    void WriteResult(const std::string& Dataset, const std::string& Operation,
+                     const std::string& Mode, const BenchmarkResult& Result);
+    void Close();
+
+private:
+    std::string FilePath;
+    bool HeaderWritten;
+    std::vector<std::tuple<std::string, std::string, std::string, BenchmarkResult>> Results;
 };
 
 class BenchmarkRunner
